@@ -26,7 +26,6 @@ pub mod crowdfunding {
         let campaign = &mut ctx.accounts.campaign;
         let clock = Clock::get()?;
 
-        // FIX: Cek deadline (Critical Issue #1)
         require!(clock.unix_timestamp < campaign.deadline, ErrorCode::CampaignEnded);
 
         let ix = system_instruction::transfer(&ctx.accounts.user.key(), &ctx.accounts.vault.key(), amount);
@@ -52,8 +51,6 @@ pub mod crowdfunding {
         require!(!campaign.claimed, ErrorCode::AlreadyClaimed);
 
         let amount = ctx.accounts.vault.lamports();
-        
-        // FIX: Array Mismatch (Critical Issue #2)
         let campaign_key = campaign.key();
         let seeds: &[&[u8]] = &[
             b"vault".as_ref(),
@@ -101,5 +98,93 @@ pub mod crowdfunding {
     }
 }
 
-// ... (Structs CreateCampaign, Contribute, Withdraw, Refund, Campaign, Contributor tetap sama)
-// Pastikan di Contribute & Refund menggunakan seeds = [b"contributor".as_ref(), ...]
+// --- ACCOUNT STRUCTS (BAGIAN INI YANG TADI HILANG/TERPOTONG) ---
+
+#[derive(Accounts)]
+pub struct CreateCampaign<'info> {
+    #[account(init, payer = creator, space = 8 + 32 + 8 + 8 + 8 + 1)]
+    pub campaign: Account<'info, Campaign>,
+    #[account(mut)]
+    pub creator: Signer<'info>,
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+pub struct Contribute<'info> {
+    #[account(mut)]
+    pub campaign: Account<'info, Campaign>,
+    #[account(
+        init_if_needed, 
+        payer = user, 
+        space = 8 + 8, 
+        seeds = [b"contributor".as_ref(), campaign.key().as_ref(), user.key().as_ref()], 
+        bump
+    )]
+    pub contributor_account: Account<'info, Contributor>,
+    #[account(mut, seeds = [b"vault".as_ref(), campaign.key().as_ref()], bump)]
+    pub vault: SystemAccount<'info>,
+    #[account(mut)]
+    pub user: Signer<'info>,
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+pub struct Withdraw<'info> {
+    #[account(mut, has_one = creator)] // Cek otomatis: campaign.creator == creator.key
+    pub campaign: Account<'info, Campaign>,
+    #[account(mut, seeds = [b"vault".as_ref(), campaign.key().as_ref()], bump)]
+    pub vault: SystemAccount<'info>,
+    #[account(mut)]
+    pub creator: Signer<'info>,
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+pub struct Refund<'info> {
+    pub campaign: Account<'info, Campaign>,
+    #[account(
+        mut, 
+        seeds = [b"contributor".as_ref(), campaign.key().as_ref(), user.key().as_ref()], 
+        bump
+    )]
+    pub contributor_account: Account<'info, Contributor>,
+    #[account(mut, seeds = [b"vault".as_ref(), campaign.key().as_ref()], bump)]
+    pub vault: SystemAccount<'info>,
+    #[account(mut)]
+    pub user: Signer<'info>,
+    pub system_program: Program<'info, System>,
+}
+
+#[account]
+pub struct Campaign {
+    pub creator: Pubkey,
+    pub goal: u64,
+    pub raised: u64,
+    pub deadline: i64,
+    pub claimed: bool,
+}
+
+#[account]
+pub struct Contributor {
+    pub amount: u64,
+}
+
+#[error_code]
+pub enum ErrorCode {
+    #[msg("Deadline must be in the future")]
+    InvalidDeadline,
+    #[msg("Campaign has ended")]
+    CampaignEnded,
+    #[msg("Goal not reached")]
+    GoalNotReached,
+    #[msg("Goal reached, no refunds")]
+    GoalReached,
+    #[msg("Campaign still active")]
+    CampaignNotEnded,
+    #[msg("Already claimed")]
+    AlreadyClaimed,
+    #[msg("No contribution found")]
+    NoContribution,
+    #[msg("Arithmetic overflow")]
+    Overflow,
+}
