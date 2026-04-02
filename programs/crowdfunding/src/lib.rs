@@ -1,7 +1,7 @@
 use anchor_lang::prelude::*;
 use anchor_lang::solana_program::{system_instruction, program::{invoke, invoke_signed}};
 
-declare_id!("8vS5U7fEaFmYt1GvK9P2XwQ7R6L4H3J2M1N0B9V8C7X6");
+declare_id!("ATGZUw4Zsmx9tGEi1sArEFhMttAygELWPgNTRsKpiaYC");
 
 #[program]
 pub mod crowdfunding {
